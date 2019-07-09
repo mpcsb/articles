@@ -10,27 +10,27 @@ from sklearn.linear_model import LogisticRegression as LR
 from sklearn.svm import SVC
 
 
-for size in range(250,5000,250):
+for size in [250,1000,2500,5000,7500,10000,25000]:
     results=[]
-    for noise in [1,21,41,61,81,91,100]:
+    for noise in [1,31,51,61,81,91,100]:
         data, target = make_classification(
             n_samples=size,
-#            n_features=53,
-            n_informative=6,
-            n_redundant=10,
+#            n_features=15,
+#            n_informative=2,
+#            n_redundant=0,
             scale=1,
             flip_y=noise*0.01,
-            random_state=1
+            random_state=1987
         )
     
         res1 = cross_val_score(LR(solver='saga',#penalty='elasticnet',
                                   max_iter=int(1e6), warm_start=True), 
                               data, target, scoring='roc_auc', cv=4).mean()
         
-        res2 = cross_val_score(GBC( max_depth=5,learning_rate=0.05),
+        res2 = cross_val_score(GBC( max_depth=5,learning_rate=0.1),
                               data, target, scoring='roc_auc', cv=4).mean()
 
-        res3 = cross_val_score(SVC(gamma='scale'),
+        res3 = cross_val_score(SVC(gamma='auto'),
                               data, target, scoring='roc_auc', cv=4).mean()
         
         results.append([res1,res2,res3])
