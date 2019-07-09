@@ -10,9 +10,9 @@ from sklearn.linear_model import LogisticRegression as LR
 from sklearn.svm import SVC
 
 
-for size in [100,250,500,5000,20000]:
+for size in range(250,2500,250):
     results=[]
-    for noise in range(1,101,10):
+    for noise in [1,21,41,61,81,91,100]:
         data, target = make_classification(
             n_samples=size,
 #            n_features=53,
@@ -24,13 +24,13 @@ for size in [100,250,500,5000,20000]:
         )
     
         res1 = cross_val_score(LR( solver='saga',max_iter=int(1e6), warm_start=True), 
-                              data, target, scoring='f1', cv=4).mean()
+                              data, target, scoring='roc_auc', cv=4).mean()
         
         res2 = cross_val_score(GBC( max_depth=5,learning_rate=0.05),
-                              data, target, scoring='f1', cv=4).mean()
+                              data, target, scoring='roc_auc', cv=4).mean()
 
         res3 = cross_val_score(SVC(gamma='scale'),
-                              data, target, scoring='f1', cv=4).mean()
+                              data, target, scoring='roc_auc', cv=4).mean()
         
         results.append([res1,res2,res3])
 #        print(results[-1],noise*0.01)
@@ -46,7 +46,7 @@ for size in [100,250,500,5000,20000]:
     ax.plot(a,'r-',label='Lin Reg')
     ax.plot(b,'b-',label='GBM') 
     ax.plot(c,'g-',label='SVC') 
-    ax.set_title('Sample size: '+ str(size))
+    ax.set_title('Size: '+ str(size))
     ax.set_xticks([], minor=False)
     ax.set_xlabel('SNR (0-100%)')
     legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large')
