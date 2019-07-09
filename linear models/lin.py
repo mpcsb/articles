@@ -10,20 +10,21 @@ from sklearn.linear_model import LogisticRegression as LR
 from sklearn.svm import SVC
 
 
-for size in range(250,2500,250):
+for size in range(250,5000,250):
     results=[]
     for noise in [1,21,41,61,81,91,100]:
         data, target = make_classification(
             n_samples=size,
 #            n_features=53,
-#            n_informative=20,
-#            n_redundant=10,
+            n_informative=6,
+            n_redundant=10,
             scale=1,
             flip_y=noise*0.01,
             random_state=1
         )
     
-        res1 = cross_val_score(LR( solver='saga',max_iter=int(1e6), warm_start=True), 
+        res1 = cross_val_score(LR(solver='saga',#penalty='elasticnet',
+                                  max_iter=int(1e6), warm_start=True), 
                               data, target, scoring='roc_auc', cv=4).mean()
         
         res2 = cross_val_score(GBC( max_depth=5,learning_rate=0.05),
@@ -50,5 +51,5 @@ for size in range(250,2500,250):
     ax.set_xticks([], minor=False)
     ax.set_xlabel('SNR (0-100%)')
     legend = ax.legend(loc='upper right', shadow=True, fontsize='x-large')
-    ax.set_ylabel('F1 score')
+    ax.set_ylabel('ROC AUC')
     plt.show()
