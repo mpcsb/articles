@@ -1,0 +1,2 @@
+https://statisticalhorizons.com/multicollinearity
+
