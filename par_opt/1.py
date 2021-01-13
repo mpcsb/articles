@@ -19,7 +19,7 @@ os.chdir(path)
 # Load data set and target values
 data, target = make_classification(
     n_samples=10000,
-    n_features=45,
+    n_features=20,
     n_informative=12,
     n_redundant=7,
     flip_y = 0.2
@@ -41,17 +41,25 @@ def rfccv(dt, min_samples_leaf, min_samples_split, max_features=None):
     ).mean()
     return val
 
-def lerp(bounds, f):
+def lerp(bounds, fraction):
     a, b = bounds
-    return a + f * (b - a)
+    return a + fraction * (b - a)
+
 
 #%%
-samples = 4
-size_grid = [100] * samples
-steps = 5
+samples = 10
+size_grid = [100]*samples
+steps = 6
+
+
+grid = {'min_samples_leaf': (0.0, 0.5),
+         'min_samples_split': (0.0, 0.9),
+         'max_features': (0.0, 0.999),
+        }
 
 grid_search = dict()
 with tqdm(total=steps**3 * samples) as pbar:
+
     for ind, size in enumerate(size_grid):
         grid_search[ind] = list()
 
@@ -59,13 +67,6 @@ with tqdm(total=steps**3 * samples) as pbar:
         idx = np.random.randint(len(data), size=size)
         dt = data[idx,:]
         tr = target[idx]
-
-
-        grid = {'min_samples_leaf': (0.0, 0.5),
-                 'min_samples_split': (0.0, 0.9),
-                 'max_features': (0.0, 0.999),
-                }
-
 
         for n1 in range(steps):
             msl = round(lerp(grid['min_samples_leaf'], n1/(steps-1)), 3)
@@ -81,20 +82,75 @@ with tqdm(total=steps**3 * samples) as pbar:
                                       max_features=mf
                                      )
                     val = np.nan_to_num(val)
-                    if val == 0:
-                        continue
+                    if val == 0: continue
+
 
                     grid_search[ind].append([val, msl, mss, mf])
 
-
-
-
+#%%_
+grid_search = {ind: grid_search[ind] for ind in grid_search  if len(grid_search[ind]) == (steps-1) **3}
 #%%
+from collections import defaultdict
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import imageio
 
-for ind in range(samples):
+
+score_distribution = defaultdict(list)
+for ind, size in enumerate(size_grid):
+    try:
+        score, msl, mss, mf = list(map(list, zip(*grid_search[ind])))
+    except:
+        continue
+
+    for i in range(len(grid_search[ind])):
+        score_distribution[(msl[i], mss[i],mf[i])].append(score[i])
+
+mean_score = {k: np.mean(score_distribution[k]) for k in score_distribution}
+
+
+x, y, z = list(map(list, zip(*mean_score.keys())))
+w = [mean_score[k] for k in mean_score ]
+
+w = np.array(w)
+x = np.array(x)
+y = np.array(y)
+z = np.array(z)
+
+# ax._axis3don = False
+for i in range(0, 359, 20):
+    ax = Axes3D(plt.figure(figsize=(15, 15)))
+    ax.scatter(x, y, z, c=w, s=5000, alpha=0.3, marker='s')
+    ax.view_init(25, i)
+    # ax._axis3don = False
+    plt.title(str(size))
+    plt.savefig(str(i) + '.png', optimize=True)
+    plt.close()
+
+def getint(name):
+    ''' aux function used to sort integer strings'''
+    num = name.split('.')[0]
+    return int(num)
+
+
+images = [f for f in os.listdir(path) if 'png' in f]
+images_sorted = list(sorted(images, key=getint))
+
+images_lst = []
+for filename in images_sorted:
+    images_lst.append(imageio.imread(filename))
+if len(images_lst) > 0:
+    kargs = {'duration': 0.15}
+    imageio.mimsave(f'animation_mean.gif', images_lst, **kargs)
+
+for filename in images_sorted :
+    os.remove(filename)
+
+
+#%%
+
+for ind in grid_search:
+
     lst = grid_search[ind]
 
     w_x_y_z = [(float(l[0]), float(l[1]), float(l[2]), float(l[3])) for l in lst]
@@ -106,19 +162,16 @@ for ind in range(samples):
     z = np.array(z)
 
     # ax._axis3don = False
-    for i in range(0, 359, 5):
+    for i in range(0, 359, 20):
         ax = Axes3D(plt.figure(figsize=(15, 15)))
-        ax.scatter(x, y, z, c=w, s=10000, alpha=0.3, marker='s')
+        ax.scatter(x, y, z, c=w, s=5000, alpha=0.3, marker='s')
         ax.view_init(25, i)
         # ax._axis3don = False
         plt.title(str(size))
-        plt.savefig(str(i) + '.png')
+        plt.savefig(str(i) + '.png', optimize=True)
         plt.close()
 
-    def getint(name):
-        ''' aux function used to sort integer strings'''
-        num = name.split('.')[0]
-        return int(num)
+
 
 
     images = [f for f in os.listdir(path) if 'png' in f]
@@ -128,7 +181,7 @@ for ind in range(samples):
     for filename in images_sorted:
         images_lst.append(imageio.imread(filename))
     if len(images_lst) > 0:
-        kargs = { 'duration': 0.15}
+        kargs = { 'duration': 0.55}
         imageio.mimsave(f'animation_{ind}.gif', images_lst, **kargs)
 
     for filename in images_sorted :
