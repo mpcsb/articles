@@ -1,20 +1,20 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Nov  2 11:22:17 2018
-@author: Miguel
-"""
 
 #%%
 import warnings
 warnings.filterwarnings("ignore")
- 
+
 import numpy as np
 
 from sklearn.datasets import make_classification
 from sklearn.model_selection import cross_val_score
-#from sklearn.svm import SVC
+
 from sklearn.ensemble import RandomForestClassifier as RFC
-# from time import time
+from tqdm import tqdm
+
+import os
+path = r'D:\UserData\Z003NJNS\Documents\rec\par opt\viz'
+os.chdir(path)
+
 
 # Load data set and target values
 data, target = make_classification(
@@ -25,9 +25,10 @@ data, target = make_classification(
     flip_y = 0.2
 )
 
+
 def gen_random_index(n):
-    return np.random.choice(data.shape[0], n, replace=False)  
- 
+    return np.random.choice(data.shape[0], n, replace=False)
+
 
 def rfccv(dt, min_samples_leaf, min_samples_split, max_features=None):
     val = cross_val_score(
@@ -40,142 +41,95 @@ def rfccv(dt, min_samples_leaf, min_samples_split, max_features=None):
     ).mean()
     return val
 
-def lerp(a, b, f):
+def lerp(bounds, f):
+    a, b = bounds
     return a + f * (b - a)
- 
+
+#%%
+samples = 4
+size_grid = [100] * samples
+steps = 5
+
 grid_search = dict()
-size_grid = [100, 500, 2500]
-for size in size_grid:
-    grid_search[size] = list()
-    print(size)
-    
-    idx = np.random.randint(len(data), size=size)
-    dt = data[idx,:]
-    tr = target[idx]
-    
-    
-    grid = {'min_samples_leaf': (0.0, 0.5),
-             'min_samples_split': (0.0, 0.9),
-             'max_features': (0.0, 0.999), 
-            }
-    
-    steps = 6
-    for n1 in range(steps):
-        msl = round(lerp(grid['min_samples_leaf'][0], grid['min_samples_leaf'][1], n1/(steps-1)), 3)
-        for n2 in range(steps):
-            mss = round(lerp(grid['min_samples_split'][0], grid['min_samples_split'][1], n2/(steps-1)), 3)
-            for n3 in range(steps):
-                mf = round(lerp(grid['max_features'][0], grid['max_features'][1], n3/(steps-1)), 3)
-         
-                val_lst = [rfccv(dt=dt, 
-                                 min_samples_leaf=msl, 
-                                 min_samples_split=mss, 
-                                  max_features=mf
-                                 ) for _ in range(2)] # average 5 models
-                lst = [np.nan_to_num(i) for i in val_lst]
-                val = sum(lst)/len(lst)
-                if val == 0:
-                    continue
-                grid_search[size].append([val, msl, mss, mf])
-    print(max(grid_search[size]))
-    
+with tqdm(total=steps**3 * samples) as pbar:
+    for ind, size in enumerate(size_grid):
+        grid_search[ind] = list()
+
+
+        idx = np.random.randint(len(data), size=size)
+        dt = data[idx,:]
+        tr = target[idx]
+
+
+        grid = {'min_samples_leaf': (0.0, 0.5),
+                 'min_samples_split': (0.0, 0.9),
+                 'max_features': (0.0, 0.999),
+                }
+
+
+        for n1 in range(steps):
+            msl = round(lerp(grid['min_samples_leaf'], n1/(steps-1)), 3)
+            for n2 in range(steps):
+                mss = round(lerp(grid['min_samples_split'], n2/(steps-1)), 3)
+                for n3 in range(steps):
+                    mf = round(lerp(grid['max_features'], n3/(steps-1)), 3)
+                    pbar.update(1)
+
+                    val = rfccv(dt=dt,
+                                     min_samples_leaf=msl,
+                                     min_samples_split=mss,
+                                      max_features=mf
+                                     )
+                    val = np.nan_to_num(val)
+                    if val == 0:
+                        continue
+
+                    grid_search[ind].append([val, msl, mss, mf])
+
+
+
 
 #%%
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D  
-
-for size in size_grid:
-    lst = grid_search[size] 
-    
-    w_x_y_z = [(float(l[0]), float(l[1]), float(l[2]), float(l[3])) for l in lst] 
-    w, x, y, z = list(map(list, zip(*w_x_y_z))) 
-
-    w = np.array(w)
-    x = np.array(x) 
-    y = np.array(y) 
-    z = np.array(z) 
-         
-    # ax._axis3don = False
-    for i in range(0, 359, 10):
-        print(i)
-        ax = Axes3D(plt.figure(figsize=(15, 15)))
-        ax.scatter(x, y, z, c=w, s=1000, marker='o')
-        ax.view_init(25, i)   
-        # ax._axis3don = False
-        plt.title(str(size))
-        plt.show()
-#%%
-    
-import os 
-import matplotlib.pyplot as plt
-
-import numpy as np
-import csv
+from mpl_toolkits.mplot3d import Axes3D
 import imageio
 
-path = r'/home/miguel/Documents/projects/Wildfire/wfire/src/simulation/viz'
-os.chdir(path)
+for ind in range(samples):
+    lst = grid_search[ind]
 
-try:
-    os.remove('animation.gif')
-except:
-    pass
+    w_x_y_z = [(float(l[0]), float(l[1]), float(l[2]), float(l[3])) for l in lst]
+    w, x, y, z = list(map(list, zip(*w_x_y_z)))
 
-def getint(name): 
-    ''' aux function used to sort integer strings'''
-    num = name.split('.')[0] 
-    return int(num)
+    w = np.array(w)
+    x = np.array(x)
+    y = np.array(y)
+    z = np.array(z)
 
+    # ax._axis3don = False
+    for i in range(0, 359, 5):
+        ax = Axes3D(plt.figure(figsize=(15, 15)))
+        ax.scatter(x, y, z, c=w, s=10000, alpha=0.3, marker='s')
+        ax.view_init(25, i)
+        # ax._axis3don = False
+        plt.title(str(size))
+        plt.savefig(str(i) + '.png')
+        plt.close()
 
-def plot3d(f, i): 
-    colors = {'road':'black',
-              'water':'blue',
-              'tree':'green',
-              'burning_tree':'red',
-              'ember':'orange',
-              'ash':'grey'}
-
-    content = list()
-    with open(f) as csv_file:
-        csv_reader = csv.reader(csv_file, delimiter=',')
-        line = 0
-        for row in csv_reader:
-            content.append(row[0].split(',')) 
-
-    x_y_z = [(float(l[0]), float(l[1]), float(l[2])) for l in content[1:]]
-    color = [colors[l[3]] for l in content[1:]]  
-    x, y, z = list(map(list, zip(*x_y_z))) 
+    def getint(name):
+        ''' aux function used to sort integer strings'''
+        num = name.split('.')[0]
+        return int(num)
 
 
-    x = np.array(x)#.reshape(self.terrain.num_points, self.terrain.num_points)
-    y = np.array(y)#.reshape(self.terrain.num_points, self.terrain.num_points)
-    z = np.array(z)#.reshape(self.terrain.num_points, self.terrain.num_points)
-        
-        
-    ax = Axes3D(plt.figure(figsize=(15, 15)))
-    ax.scatter(x, y, z, c=color, marker='^')
-    ax._axis3don = False
-    ax.view_init(35, 60 + i*10)  
-    plt.savefig(str(i) + '.png')
-    plt.close()
+    images = [f for f in os.listdir(path) if 'png' in f]
+    images_sorted = list(sorted(images, key=getint))
 
+    images_lst = []
+    for filename in images_sorted:
+        images_lst.append(imageio.imread(filename))
+    if len(images_lst) > 0:
+        kargs = { 'duration': 0.15}
+        imageio.mimsave(f'animation_{ind}.gif', images_lst, **kargs)
 
-
-files = [f for f in os.listdir(path)]
-files_sorted = list(sorted(files, key=getint)) 
-
-for i, f in enumerate(files_sorted): 
-    plot3d(f, i) 
-
-images = [f for f in os.listdir(path) if 'png' in f]
-images_sorted = list(sorted(images, key=getint))
-
-images_lst = []
-for filename in images_sorted:
-    images_lst.append(imageio.imread(filename))
-if len(images_lst) > 0:
-    kargs = { 'duration': 0.15}
-    imageio.mimsave('animation.gif', images_lst, **kargs) 
-
-for filename in images_sorted + files_sorted:
-    os.remove(filename)
+    for filename in images_sorted :
+        os.remove(filename)
