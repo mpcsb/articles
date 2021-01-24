@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Jan 23 21:32:26 2021
+
+@author: miguel
+"""
+
+#%%
+
+import warnings
+warnings.filterwarnings("ignore")
+ 
+import numpy as np
+
+# from sklearn.datasets import make_classification
+from sklearn.model_selection import cross_val_score 
+from sklearn.ensemble import RandomForestRegressor as RFR 
+from sklearn.datasets import load_boston
+import matplotlib.pyplot as plt
+from collections import defaultdict
+
+X, y = load_boston(return_X_y=True) 
+
+def rfrcv(target, train_data, param):
+    val = cross_val_score(
+        RFR(min_samples_split=param, 
+            criterion='mse',
+            random_state=2,
+        ),
+        train_data, target, 
+        cv=6, n_jobs=7
+    ).mean()
+    return val
+ 
+def lerp(a, b, f):
+    return a + f * (b - a)
+
+params = {'min_samples_leaf': (0.01, 0.5),
+         'min_samples_split': (0.01, 0.9),
+         'max_features': (0.0, 0.999), 
+        }
+
+#%% exploring variation in hyperparameter over sample size
+size_grid = list(range(50, len(X), 50)) 
+steps = 20
+
+grid_search = dict()
+for size in size_grid:
+    print(size, len(X))
+    grid_search[size] = list() 
+    
+    idx = np.random.randint(len(X), size=size)
+    train_data = X[idx,:]
+    target = y[idx] 
+     
+    for n1 in range(steps): 
+        param = round(lerp(params['min_samples_split'][0], params['min_samples_split'][1], n1/(steps-1)), 3) 
+        val = rfrcv(target=target, train_data=train_data, param=param)   
+        grid_search[size].append([val, param,]) 
+
+ 
+for size in size_grid:
+    d = grid_search[size]
+    score, param = list(map(list, zip(*d))) 
+    
+    plt.scatter(param, score, alpha=size/1001, c='red')
+    # plt.title(str(size))
+    # plt.show()
+
+'''
+There is a significant amount of overlap for all sample sizes.
+This indicates that to some extent, experiments with very small samples might
+be informative for the optimal parameter.
+'''    
+#%% exploring variance in results from sample sizes
+
+size_grid = list(range(50, len(X), 100)) 
+repeats = 100 # amount of models to estimate variation caused by different samples
+steps = 5
+
+variance = defaultdict(list) 
+for it in range(repeats):
+    print(it)
+    for size in size_grid: 
+        idx = np.random.randint(len(X), size=size)
+        train_data = X[idx,:]
+        target = y[idx] 
+         
+        for n1 in range(steps): 
+            param = round(lerp(params['min_samples_split'][0], params['min_samples_split'][1], n1/(steps-1)), 3) 
+            val = rfrcv(target=target, train_data=train_data, param=param)   
+            variance[size].append([val, param,]) 
+ 
+for size in size_grid:
+    score, param = list(map(list, zip(*variance[size]))) 
+    plt.scatter(param, score, alpha=0.05, c='red')
+    plt.title(str(size))
+    plt.show()
+    
+for size in size_grid:
+    score, param = list(map(list, zip(*variance[size]))) 
+    plt.scatter(param, score, alpha=size/2000, c='red') 
+     
+'''
+As expected, smaller samples have greater variance than larger samples.
+Larger samples will have a very significant overlap with the population which
+means that there's less to vary in the training data, and the results should be 
+similar.
+'''
+
+#%% comparing mean/median of scores from smaller and biggest size. Do they match?
+
+param_median = defaultdict(list)
+param_mean = defaultdict(list)
+
+for size in size_grid:
+    parameter_set = set(sorted([p for s, p in variance[size]]))
+    for p1 in parameter_set:
+        s_lst = [s for s, p in variance[size] if p1 == p]
+        param_median[p1].append(round(np.median(s_lst),3))
+        param_mean[p1].append(round(np.mean(s_lst),3))
+        # print(f'{size}: {p1}   {np.median(s_lst)}')
+
+'''
+An analytical analysis of the plots above seems to indicate that the distribution
+overall seems to resemble and inform on the populations true value for the optimal parameters
+The median needs to be used because in small samples the variance is so large that
+outliers are frequently generated and perturb the mean.
+'''
+
+#%% focusing on small samples distributions for all parameter values: gaussian or not?
+
+for p1 in parameter_set:
+    # parameter_set = set(sorted([p for s, p in variance[size]]))
+    all_sizes = list()
+    for size in size_grid:
+        s_lst = [s for s, p in variance[size] if p1 == p] 
+        all_sizes.append(s_lst)
+    plt.hist(all_sizes, bins=20, alpha=0.5)
+    plt.title(f'{p1}' )
+    # plt.title(f'{p1} {round(np.mean(s_lst),3)}')
+    plt.show()
+ 
+'''
+The distributions seem to be somewhat symmetric, but a normality test would be needed.
+If these distributions are normal, we can infer that the mean of these distributions 
+could be seen as the mean of the true population - CLT corollary.
+The distributions seem to share some sort of central tendency
+'''
+
+#%% Can this be generalized to two dimensions? next script
